@@ -1,0 +1,207 @@
+🧠 MASTER FIX + UPGRADE PROMPT (FINAL — WITH DESCRIPTION + FULL SOURCES)
+
+You are working on an existing Node.js + Express + PostgreSQL event aggregation platform.
+
+The system already includes:
+
+Event scraping (Devpost, Devfolio, partially Unstop)
+Map view using Leaflet + OpenStreetMap
+Geocoding via Nominatim
+🚨 CRITICAL ISSUES TO FIX FIRST
+🧩 0. FIX: EVENT DESCRIPTION NOT SHOWING (MOST IMPORTANT)
+❌ Problem:
+
+UI shows:
+
+“No detailed description provided”
+
+Root cause:
+
+Scraper NOT extracting description
+OR backend NOT storing it
+OR frontend NOT rendering it
+✅ FULL FIX (ALL 3 LAYERS)
+🔧 (A) DATABASE
+
+Ensure column exists:
+
+ALTER TABLE events ADD COLUMN IF NOT EXISTS description TEXT;
+🔧 (B) SCRAPER FIX (MANDATORY)
+For EVERY scraper:
+
+You MUST extract description from event detail page, not listing page.
+
+Example (generic pattern):
+async function fetchEventDetails(url, page) {
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+  const description = await page.evaluate(() => {
+    const el =
+      document.querySelector('.description') ||
+      document.querySelector('.event-description') ||
+      document.querySelector('[class*="desc"]');
+
+    return el ? el.innerText.trim() : null;
+  });
+
+  return { description };
+}
+While scraping list:
+for (const event of events) {
+  const details = await fetchEventDetails(event.url, page);
+
+  event.description = details.description || "No description available";
+}
+🔧 (C) BACKEND API FIX
+
+Ensure /events returns:
+
+{
+  "title": "",
+  "description": "",
+  "location": "",
+  "latitude": "",
+  "longitude": ""
+}
+🔧 (D) FRONTEND FIX
+
+Replace:
+
+"No detailed description provided."
+
+WITH:
+
+${event.description || "No description available"}
+🧩 1. FIX: MAP SHOWING ONLY SOME EVENTS
+❌ Root Causes:
+Missing lat/lng
+Markers not cleared properly
+Async fetch incomplete
+Invalid coordinates skipped silently
+✅ Fix:
+✔ Ensure ALL events have coordinates:
+if (!event.latitude || !event.longitude) {
+  console.warn("Missing coords:", event.title);
+  return;
+}
+✔ Ensure markers reset before re-render:
+function clearMarkers() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+}
+✔ Ensure full fetch:
+const res = await fetch('/events?withCoordinates=true');
+const events = await res.json();
+🧩 2. FIX: MAP DUPLICATION / INFINITE TILE REPEAT
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  noWrap: true,
+  maxBounds: [[-90, -180],[90, 180]],
+  maxZoom: 18,
+  minZoom: 2
+}).addTo(map);
+
+map.setMaxBounds([[-90, -180],[90, 180]]);
+🧩 3. ADD: RADIUS FILTER (10 / 25 / 50 KM)
+
+(keep your existing Haversine SQL — already correct)
+
+🧩 4. FIX: UNSTOP SCRAPER (MANDATORY PLAYWRIGHT)
+
+Already defined — DO NOT change logic.
+
+🧩 5. 🚀 MASSIVE UPGRADE: ADD ALL NEW EVENT SOURCES
+🧠 REQUIRED PLATFORMS
+🏆 Hackathon Platforms
+HackerEarth
+Major League Hacking
+Skillenza
+Hack2skill
+TechGig
+TaiKai
+Agorize
+AngelHack
+DevEvents
+Reskilll
+🎓 Webinar / Workshop Platforms
+Google Developers Group
+Microsoft Learn Student Ambassadors
+GeeksforGeeks
+Coding Ninjas
+Scaler
+Analytics Vidhya
+Eventbrite (TECH FILTER ONLY)
+Meetup (TECH GROUPS ONLY)
+NASSCOM
+🧠 SCRAPING ARCHITECTURE (MANDATORY)
+
+Create modular structure:
+
+/scrapers/
+  devpost.js
+  devfolio.js
+  unstop.js
+  hackerearth.js
+  mlh.js
+  meetup.js
+  eventbrite.js
+  ...
+STANDARD FORMAT (VERY IMPORTANT)
+
+Each scraper MUST return:
+
+{
+  title,
+  description,
+  url,
+  location,
+  date,
+  source
+}
+🔥 Use Strategy:
+Type	Method
+Static HTML	Axios + Cheerio
+Dynamic	Playwright
+🧩 6. FIX: DATE INPUT
+
+(keep your existing fix — already correct)
+
+🧩 7. MAP CLUSTERING
+
+(keep your existing implementation)
+
+🧩 8. STRICT GEOCODING RULE
+NEVER call API if cached
+ALWAYS store results
+🧩 9. DEBUG LOGGING (VERY IMPORTANT)
+
+Add logs:
+
+console.log("Events fetched:", events.length);
+console.log("With coords:", events.filter(e => e.latitude).length);
+🧩 10. FINAL VALIDATION CHECKLIST
+
+After implementation:
+
+✅ Descriptions visible on UI
+✅ Scraper extracts descriptions from detail pages
+✅ All events appear on map
+✅ No duplicate maps
+✅ Radius filtering works
+✅ All new platforms integrated
+✅ Unstop works reliably
+✅ No missing coordinates
+
+⚠️ NON-NEGOTIABLE RULES
+MUST extract description from detail page
+MUST use Playwright for dynamic sites
+MUST follow modular scraper architecture
+DO NOT break existing API
+🚀 FINAL OUTPUT
+
+A complete event intelligence platform with:
+
+Rich event descriptions
+Accurate map plotting
+Multi-source scraping
+Scalable architecture

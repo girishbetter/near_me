@@ -1,8 +1,11 @@
 import { useMemo } from "react";
 import { Link } from "wouter";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import L from "leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
+import L, { type LatLngBoundsLiteral } from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { useListEvents } from "@workspace/api-client-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -25,6 +28,12 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const INDIA_CENTER: [number, number] = [20.5937, 78.9629];
+// Locks the map to a single world copy and prevents users from panning into
+// the empty grey ocean above/below the projection.
+const WORLD_BOUNDS: LatLngBoundsLiteral = [
+  [-85, -180],
+  [85, 180],
+];
 
 export default function MapView() {
   const { data, isLoading, isError } = useListEvents({
@@ -81,55 +90,70 @@ export default function MapView() {
               center={INDIA_CENTER}
               zoom={3}
               minZoom={2}
+              maxZoom={18}
               scrollWheelZoom
               style={{ height: "100%", width: "100%" }}
-              worldCopyJump
+              maxBounds={WORLD_BOUNDS}
+              maxBoundsViscosity={1.0}
+              worldCopyJump={false}
             >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                noWrap
+                bounds={WORLD_BOUNDS}
               />
-              {eventsWithCoords.map((event) => (
-                <Marker
-                  key={event.id}
-                  position={[event.latitude as number, event.longitude as number]}
-                >
-                  <Popup>
-                    <div className="space-y-1.5 min-w-[200px] max-w-[260px]">
-                      <div className="font-semibold text-sm leading-snug">
-                        {event.title}
-                      </div>
-                      {event.location && (
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {event.location}
+              <MarkerClusterGroup
+                chunkedLoading
+                maxClusterRadius={45}
+                spiderfyOnMaxZoom
+                showCoverageOnHover={false}
+              >
+                {eventsWithCoords.map((event) => (
+                  <Marker
+                    key={event.id}
+                    position={[
+                      event.latitude as number,
+                      event.longitude as number,
+                    ]}
+                  >
+                    <Popup>
+                      <div className="space-y-1.5 min-w-[200px] max-w-[260px]">
+                        <div className="font-semibold text-sm leading-snug">
+                          {event.title}
                         </div>
-                      )}
-                      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                        <span>{event.platform}</span>
-                        <span>·</span>
-                        <span>{event.type}</span>
+                        {event.location && (
+                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {event.location}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          <span>{event.platform}</span>
+                          <span>·</span>
+                          <span>{event.type}</span>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <Link
+                            href={`/events/${event.id}`}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Details
+                          </Link>
+                          <a
+                            href={event.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            Visit <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
                       </div>
-                      <div className="flex gap-2 pt-1">
-                        <Link
-                          href={`/events/${event.id}`}
-                          className="text-xs text-primary hover:underline"
-                        >
-                          Details
-                        </Link>
-                        <a
-                          href={event.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                        >
-                          Visit <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
+                    </Popup>
+                  </Marker>
+                ))}
+              </MarkerClusterGroup>
             </MapContainer>
           </div>
         )}

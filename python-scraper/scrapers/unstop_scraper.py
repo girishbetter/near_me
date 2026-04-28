@@ -16,10 +16,12 @@ import json
 import logging
 import os
 import random
+import re
 from typing import Any, Iterable
 from urllib.parse import urlencode
 
 import httpx
+from bs4 import BeautifulSoup
 
 from models.raw_event import RawEvent
 from scrapers.base import BaseScraper, random_user_agent
@@ -130,6 +132,16 @@ def _entry_to_raw(item: dict) -> RawEvent | None:
     elif isinstance(prizes, (int, str)):
         prize = str(prizes)
 
+    # `details` is an HTML blob from Unstop's CMS. Strip tags + collapse
+    # whitespace so the frontend can render it as plain prose.
+    description = None
+    raw_details = item.get("details")
+    if isinstance(raw_details, str) and raw_details.strip():
+        text = BeautifulSoup(raw_details, "html.parser").get_text(" ", strip=True)
+        text = re.sub(r"\s+", " ", text).strip()
+        if text:
+            description = text[:5000]
+
     return RawEvent(
         title=title,
         platform="unstop",
@@ -143,6 +155,7 @@ def _entry_to_raw(item: dict) -> RawEvent | None:
         location=location,
         type=("hackathon" if "hack" in title.lower() else "other"),
         prize=str(prize) if prize is not None else None,
+        description=description,
     )
 
 
