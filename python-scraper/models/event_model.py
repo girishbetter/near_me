@@ -11,6 +11,7 @@ from typing import Optional
 from sqlalchemy import (
     ARRAY,
     DateTime,
+    Float,
     Integer,
     String,
     Text,
@@ -43,6 +44,8 @@ class Event(Base):
     )
     organizer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     location: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     prize: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

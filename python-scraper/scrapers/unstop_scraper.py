@@ -85,7 +85,25 @@ def _entry_to_raw(item: dict) -> RawEvent | None:
     location = None
     locs = item.get("locations") or item.get("city")
     if isinstance(locs, list) and locs:
-        location = ", ".join(str(x) for x in locs if x)
+        # Unstop returns either bare strings or dicts like
+        # {'city': 'Mumbai', 'state': 'Maharashtra', 'country': 'India'}.
+        # Render dicts as 'City, State' (deduped) so they geocode cleanly.
+        parts: list[str] = []
+        seen: set[str] = set()
+        for x in locs:
+            if not x:
+                continue
+            if isinstance(x, dict):
+                city = x.get("city") or ""
+                state = x.get("state") or ""
+                rendered = ", ".join(p for p in (city, state) if p)
+            else:
+                rendered = str(x)
+            rendered = rendered.strip()
+            if rendered and rendered not in seen:
+                seen.add(rendered)
+                parts.append(rendered)
+        location = "; ".join(parts) if parts else None
     elif isinstance(locs, str):
         location = locs
 

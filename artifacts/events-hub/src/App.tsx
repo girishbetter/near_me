@@ -10,6 +10,7 @@ import Browse from "@/pages/Browse";
 import EventDetail from "@/pages/EventDetail";
 import ScrapeControl from "@/pages/ScrapeControl";
 import AddEvent from "@/pages/AddEvent";
+import MapView from "@/pages/MapView";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/events" component={Browse} />
       <Route path="/events/new" component={AddEvent} />
       <Route path="/events/:id" component={EventDetail} />
+      <Route path="/map" component={MapView} />
       <Route path="/scrape" component={ScrapeControl} />
       <Route component={NotFound} />
     </Switch>

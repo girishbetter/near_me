@@ -26,6 +26,12 @@ export function Header() {
               Browse
             </Link>
             <Link
+              href="/map"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors"
+            >
+              Map
+            </Link>
+            <Link
               href="/scrape"
               className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors"
             >

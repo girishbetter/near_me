@@ -92,6 +92,12 @@ paths:
           required: false
           schema:
             type: string
+        - name: withCoords
+          in: query
+          required: false
+          description: When true, only return events that have latitude/longitude.
+          schema:
+            type: boolean
         - name: limit
           in: query
           required: false
@@ -363,6 +369,16 @@ components:
         location:
           type: string
           nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+          description: Geocoded latitude (WGS84). Populated by the geocoder service.
+        longitude:
+          type: number
+          format: double
+          nullable: true
+          description: Geocoded longitude (WGS84). Populated by the geocoder service.
         prize:
           type: string
           nullable: true

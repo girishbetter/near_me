@@ -49,6 +49,10 @@ export const ListEventsQueryParams = zod.object({
   mode: zod.enum(["online", "offline", "hybrid", "all"]).optional(),
   tag: zod.coerce.string().optional(),
   search: zod.coerce.string().optional(),
+  withCoords: zod.coerce
+    .boolean()
+    .optional()
+    .describe("When true, only return events that have latitude\/longitude."),
   limit: zod.coerce
     .number()
     .min(1)
@@ -75,6 +79,18 @@ export const ListEventsResponse = zod.object({
       tags: zod.array(zod.string()),
       organizer: zod.string().nullish(),
       location: zod.string().nullish(),
+      latitude: zod
+        .number()
+        .nullish()
+        .describe(
+          "Geocoded latitude (WGS84). Populated by the geocoder service.",
+        ),
+      longitude: zod
+        .number()
+        .nullish()
+        .describe(
+          "Geocoded longitude (WGS84). Populated by the geocoder service.",
+        ),
       prize: zod.string().nullish(),
       description: zod.string().nullish(),
       createdAt: zod.string(),
@@ -104,6 +120,14 @@ export const GetEventResponse = zod.object({
   tags: zod.array(zod.string()),
   organizer: zod.string().nullish(),
   location: zod.string().nullish(),
+  latitude: zod
+    .number()
+    .nullish()
+    .describe("Geocoded latitude (WGS84). Populated by the geocoder service."),
+  longitude: zod
+    .number()
+    .nullish()
+    .describe("Geocoded longitude (WGS84). Populated by the geocoder service."),
   prize: zod.string().nullish(),
   description: zod.string().nullish(),
   createdAt: zod.string(),
@@ -192,6 +216,18 @@ export const GetUpcomingDeadlinesResponse = zod.object({
       tags: zod.array(zod.string()),
       organizer: zod.string().nullish(),
       location: zod.string().nullish(),
+      latitude: zod
+        .number()
+        .nullish()
+        .describe(
+          "Geocoded latitude (WGS84). Populated by the geocoder service.",
+        ),
+      longitude: zod
+        .number()
+        .nullish()
+        .describe(
+          "Geocoded longitude (WGS84). Populated by the geocoder service.",
+        ),
       prize: zod.string().nullish(),
       description: zod.string().nullish(),
       createdAt: zod.string(),

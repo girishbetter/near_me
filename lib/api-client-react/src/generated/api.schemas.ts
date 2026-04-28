@@ -92,6 +92,10 @@ export interface Event {
   tags: string[];
   organizer?: string | null;
   location?: string | null;
+  /** Geocoded latitude (WGS84). Populated by the geocoder service. */
+  latitude?: number | null;
+  /** Geocoded longitude (WGS84). Populated by the geocoder service. */
+  longitude?: number | null;
   prize?: string | null;
   description?: string | null;
   createdAt: string;
@@ -165,6 +169,10 @@ export type ListEventsParams = {
   mode?: ListEventsMode;
   tag?: string;
   search?: string;
+  /**
+   * When true, only return events that have latitude/longitude.
+   */
+  withCoords?: boolean;
   /**
    * @minimum 1
    * @maximum 200

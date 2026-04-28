@@ -24,6 +24,7 @@ from scrapers.mlh_scraper import MLHScraper
 from scrapers.unstop_scraper import UnstopScraper
 from services.dedupe import cross_source_dedupe, priority
 from services.filter import filter_events
+from services.geocode import enrich_missing_coordinates
 from services.normalize import normalize_event
 
 logger = logging.getLogger(__name__)
@@ -242,6 +243,15 @@ async def run_all() -> dict:
     sample = list_events(limit=500)
     _, cross_dups = cross_source_dedupe(sample)
 
+    # Geocode any newly-arrived events with a location but no coordinates.
+    # This is intentionally bounded (Nominatim allows ≤ 1 req/s) — anything
+    # we don't get to this run picks up on the next 6h cycle.
+    try:
+        geocode_summary = await enrich_missing_coordinates()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("[run_all] geocoding pass failed: %s", exc)
+        geocode_summary = {"error": str(exc)}
+
     summary = {
         "results": clean,
         "total_found": sum(r["found"] for r in clean),
@@ -249,6 +259,7 @@ async def run_all() -> dict:
         "cross_source_duplicates": cross_dups,
         "sources_succeeded": sum(1 for r in clean if r["status"] == "success"),
         "sources_failed": sum(1 for r in clean if r["status"] == "error"),
+        "geocoding": geocode_summary,
     }
     logger.info("[run_all] summary: %s", summary)
     return summary

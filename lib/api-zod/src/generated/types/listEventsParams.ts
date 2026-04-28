@@ -15,6 +15,10 @@ export type ListEventsParams = {
   tag?: string;
   search?: string;
   /**
+   * When true, only return events that have latitude/longitude.
+   */
+  withCoords?: boolean;
+  /**
    * @minimum 1
    * @maximum 200
    */

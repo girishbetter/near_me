@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   integer,
+  doublePrecision,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -25,6 +26,8 @@ export const eventsTable = pgTable(
     tags: text("tags").array().notNull().default([]),
     organizer: text("organizer"),
     location: text("location"),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
     prize: text("prize"),
     description: text("description"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -41,8 +44,34 @@ export const eventsTable = pgTable(
     index("events_platform_idx").on(table.platform),
     index("events_mode_idx").on(table.mode),
     index("events_end_date_idx").on(table.endDate),
+    index("events_coords_idx").on(table.latitude, table.longitude),
   ],
 );
+
+/**
+ * Geocode cache — keyed by the raw `location` string we feed to
+ * Nominatim. We never call the Nominatim API twice for the same
+ * location string thanks to this table.
+ */
+export const geocodeCacheTable = pgTable(
+  "geocode_cache",
+  {
+    id: serial("id").primaryKey(),
+    location: text("location").notNull(),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
+    /** Raw Nominatim display_name; useful for debugging miss vs. hit. */
+    displayName: text("display_name"),
+    /** Set when the API returned no result, so we don't keep re-asking. */
+    notFound: integer("not_found").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex("geocode_cache_location_unique").on(table.location)],
+);
+
+export type GeocodeCacheRow = typeof geocodeCacheTable.$inferSelect;
 
 export const insertEventSchema = createInsertSchema(eventsTable).omit({
   id: true,

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, eventsTable, type InsertEvent } from "@workspace/db";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNotNull, or, sql } from "drizzle-orm";
 import {
   CreateEventBody,
   GetEventParams,
@@ -99,7 +99,8 @@ router.get("/events", async (req, res): Promise<void> => {
     return;
   }
 
-  const { type, platform, mode, tag, search, limit, offset } = parsed.data;
+  const { type, platform, mode, tag, search, withCoords, limit, offset } =
+    parsed.data;
 
   const conditions = [];
   if (type && type !== "all") conditions.push(eq(eventsTable.type, type));
@@ -114,6 +115,10 @@ router.get("/events", async (req, res): Promise<void> => {
     const orgMatch = ilike(eventsTable.organizer, term);
     const orCondition = or(titleMatch, orgMatch);
     if (orCondition) conditions.push(orCondition);
+  }
+  if (withCoords) {
+    conditions.push(isNotNull(eventsTable.latitude));
+    conditions.push(isNotNull(eventsTable.longitude));
   }
 
   const where =
@@ -188,6 +193,8 @@ function serializeEvent(event: typeof eventsTable.$inferSelect) {
     tags: event.tags ?? [],
     organizer: event.organizer,
     location: event.location,
+    latitude: event.latitude,
+    longitude: event.longitude,
     prize: event.prize,
     description: event.description,
     createdAt: event.createdAt.toISOString(),

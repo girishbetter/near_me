@@ -1,0 +1,239 @@
+You are extending an existing full-stack event aggregation app (Node.js + Express + PostgreSQL).
+
+Add a **map view** that displays **event locations as markers** using **free, open-source mapping (OpenStreetMap + Leaflet)**. Do NOT use any paid APIs.
+
+---
+
+# 🎯 GOAL
+
+* Show a map on the frontend
+* Plot events as markers using their location
+* Clicking a marker shows event details
+* Use only free tools (OpenStreetMap)
+
+---
+
+# 🧱 TECH REQUIREMENTS
+
+* Map Library: Leaflet.js (open-source)
+* Map Data: OpenStreetMap tiles
+* Backend: Node.js (existing)
+* No Mapbox, no Google Maps
+
+---
+
+# 🔧 1. DATABASE UPDATE (IMPORTANT)
+
+Your events table already has `location` field.
+
+### Add new columns:
+
+* latitude (FLOAT)
+* longitude (FLOAT)
+
+---
+
+# 🔍 2. GEOCODING (CRITICAL)
+
+You must convert event `location` → coordinates.
+
+Use:
+👉 OpenStreetMap Nominatim API (free)
+
+Endpoint:
+https://nominatim.openstreetmap.org/search?q={location}&format=json
+
+---
+
+## Create utility:
+
+`/utils/geocode.js`
+
+Function:
+
+```javascript
+async function geocodeLocation(location)
+```
+
+### Logic:
+
+* Call Nominatim API
+* Extract:
+
+  * lat
+  * lon
+* Return coordinates
+
+---
+
+## IMPORTANT RULES:
+
+* Add delay (1 sec between requests) → avoid blocking
+* Cache results (VERY IMPORTANT)
+
+---
+
+# ⚡ 3. CACHING (MUST IMPLEMENT)
+
+Create table:
+`geocode_cache`
+
+Columns:
+
+* location (unique)
+* latitude
+* longitude
+
+### Flow:
+
+1. Check if location exists in cache
+2. If yes → use stored lat/lng
+3. If no → call API → store result
+
+---
+
+# 🔁 4. INTEGRATE WITH SCRAPER
+
+After scraping events:
+
+* If event has location:
+
+  * call geocode function
+  * store lat/lng in DB
+
+Skip if:
+
+* location is null
+* already geocoded
+
+---
+
+# 📡 5. API UPDATE
+
+Modify:
+
+## GET /events
+
+Return:
+
+```json
+{
+  "title": "",
+  "location": "",
+  "latitude": "",
+  "longitude": "",
+  ...
+}
+```
+
+Also add filter:
+
+* only return events with coordinates (optional param)
+
+---
+
+# 🗺️ 6. FRONTEND MAP IMPLEMENTATION
+
+Create map view using Leaflet.
+
+---
+
+## Add Leaflet CDN:
+
+```html
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+```
+
+---
+
+## Create Map Container:
+
+```html
+<div id="map" style="height: 500px;"></div>
+```
+
+---
+
+## Initialize Map:
+
+```javascript
+const map = L.map('map').setView([20.5937, 78.9629], 5); // India center
+```
+
+---
+
+## Add OpenStreetMap tiles:
+
+```javascript
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+```
+
+---
+
+# 📍 7. ADD EVENT MARKERS
+
+Fetch events from backend:
+
+```javascript
+fetch('/events')
+```
+
+Loop through events:
+
+```javascript
+events.forEach(event => {
+  if (event.latitude && event.longitude) {
+    L.marker([event.latitude, event.longitude])
+      .addTo(map)
+      .bindPopup(`
+        <b>${event.title}</b><br/>
+        ${event.location}<br/>
+        <a href="${event.url}" target="_blank">View Event</a>
+      `);
+  }
+});
+```
+
+---
+
+# ⚡ 8. PERFORMANCE IMPROVEMENTS
+
+* Do NOT geocode same location multiple times
+* Limit geocoding requests
+* Load markers in batches if too many
+
+---
+
+# 🧠 9. OPTIONAL (ADVANCED)
+
+* Cluster markers (Leaflet.markercluster)
+* Filter markers by event type
+* Highlight nearby events
+
+---
+
+# 🚨 10. CONSTRAINTS
+
+* Use ONLY free services
+* Respect Nominatim rate limits
+* Do not spam API
+
+---
+
+# 🚀 FINAL OUTPUT
+
+* Map visible on frontend
+* Markers showing event locations
+* Clicking marker shows event info
+* Backend enriched with coordinates
+* Efficient geocoding with caching
+
+---
+
+Ensure project runs normally with:
+npm run dev
+
+Do not overcomplicate UI — focus on functionality.

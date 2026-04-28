@@ -21,6 +21,10 @@ export interface Event {
   tags: string[];
   organizer?: string | null;
   location?: string | null;
+  /** Geocoded latitude (WGS84). Populated by the geocoder service. */
+  latitude?: number | null;
+  /** Geocoded longitude (WGS84). Populated by the geocoder service. */
+  longitude?: number | null;
   prize?: string | null;
   description?: string | null;
   createdAt: string;
