@@ -4,8 +4,10 @@
 
 Tech Events Hub — a full-stack monorepo aggregator for tech events
 (hackathons, webinars, workshops). Scrapes multiple platforms (Unstop,
-Devpost, Eventbrite stub), normalizes the data, stores it in PostgreSQL,
-and serves it through a REST API consumed by a React frontend.
+Devpost, Devfolio, Eventbrite stub), normalizes the data, performs
+cross-platform deduplication, stores it in PostgreSQL, and serves it
+through a REST API consumed by a React frontend. A scheduler refreshes
+all sources every 8 hours.
 
 ## Artifacts
 
@@ -33,9 +35,22 @@ and serves it through a REST API consumed by a React frontend.
 - Each source has its own module under
   `artifacts/api-server/src/scrapers/` and implements the `Scraper`
   interface (`source`, `scrape() => Promise<InsertEvent[]>`).
-- `unstopScraper` and `devpostScraper` use each platform's public
-  JSON listings; `eventbriteScraper` is a placeholder until credentials
-  are available.
+- `unstopScraper`, `devpostScraper`, and `devfolioScraper` use each
+  platform's public JSON listings; `eventbriteScraper` is a placeholder
+  until credentials are available.
+- `devfolioScraper` calls `POST https://api.devfolio.co/api/search/hackathons`.
+  Devfolio's public search endpoint silently ignores all filter
+  parameters and currently returns mostly archived (2021-2023) records.
+  The pipeline-level stale-event filter (60 days past `endDate`) drops
+  these so they never reach the dashboard. Source remains wired so it
+  becomes useful as soon as their API exposes live data again.
+- After all sources scrape, raw events flow through
+  `crossPlatformDedupe` (`artifacts/api-server/src/lib/crossPlatformDedupe.ts`),
+  which merges duplicates across sources using Jaccard token similarity
+  on titles (≥0.7) combined with a date-overlap window (≤7 days). When
+  duplicates collide the more complete record wins.
+- The 8-hour scheduler in `artifacts/api-server/src/lib/scheduler.ts`
+  drives `runAllScrapers` automatically.
 - All scrapers emit raw events that flow through `normalizeEvent()`
   (`artifacts/api-server/src/lib/normalize.ts`) into the unified shape.
 - `scraperRunner.ts` upserts events by URL (duplicate prevention) and

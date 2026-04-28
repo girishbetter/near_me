@@ -1,0 +1,364 @@
+You are extending an existing full-stack event aggregation system (Node.js + Express + Playwright + PostgreSQL).
+
+Your task is to implement a **robust multi-source crawler system** that scrapes tech events from:
+
+1. Unstop → https://unstop.com/competitions?oppstatus=open
+2. Devfolio → https://devfolio.co/hackathons
+
+Focus on **accuracy, deduplication, efficiency, and scalability**. Do not focus on UI.
+
+---
+
+# 🎯 OBJECTIVES
+
+* Add new crawler modules for Unstop and Devfolio
+* Extract only **valid, real event data (no dummy links)**
+* Eliminate duplicates across sources
+* Normalize data into a unified schema
+* Improve scraper efficiency and reliability
+
+---
+
+# 🏗️ ARCHITECTURE
+
+## Folder Structure
+
+```
+/scrapers
+  ├── unstopCrawler.js
+  ├── devfolioCrawler.js
+  ├── index.js
+/utils
+  ├── normalizeEvent.js
+  ├── deduplicate.js
+  ├── validate.js
+/services
+  ├── scraperService.js
+```
+
+---
+
+# 🔧 1. COMMON SCRAPER INTERFACE
+
+Each scraper must export:
+
+```javascript
+async function scrape() {
+  return Event[];
+}
+```
+
+All scrapers must return **raw structured data**, NOT directly insert into DB.
+
+---
+
+# 🔍 2. UNSTOP CRAWLER
+
+File: `/scrapers/unstopCrawler.js`
+
+## Target URL:
+
+https://unstop.com/competitions?oppstatus=open
+
+---
+
+## Scraping Strategy (IMPORTANT)
+
+* Use Playwright (Chromium)
+* Wait for full page load
+* Handle dynamic content loading
+
+### Infinite Scroll:
+
+* Scroll until:
+
+  * no new content loads OR
+  * max 6 scrolls
+
+---
+
+## Data Extraction
+
+From each event card extract:
+
+* title
+* event_url (STRICT validation required)
+* image
+* deadline
+* mode
+* tags
+* organizer
+
+---
+
+## URL VALIDATION (CRITICAL)
+
+Reject:
+
+* "#"
+* empty strings
+* duplicate URLs
+
+Accept only:
+
+```javascript
+url.startsWith("https://unstop.com")
+```
+
+---
+
+## Detail Page Enhancement (IMPORTANT)
+
+For higher accuracy:
+
+* Visit each valid event_url (limit concurrency to 3)
+* Extract:
+
+  * full description
+  * exact dates
+  * organizer
+  * location
+
+---
+
+# 🔍 3. DEVFOLIO CRAWLER
+
+File: `/scrapers/devfolioCrawler.js`
+
+## Target URL:
+
+https://devfolio.co/hackathons
+
+---
+
+## Scraping Strategy
+
+* Use Playwright
+* Wait for content load
+* Scroll (max 5 times)
+
+---
+
+## Data Extraction
+
+From each hackathon card extract:
+
+* title
+* event_url
+* image
+* start_date
+* end_date
+* location
+* mode (derive: online/offline)
+* tags (if available)
+
+---
+
+## IMPORTANT:
+
+Devfolio often has:
+
+* clean URLs → use directly
+* better structured data than Unstop
+
+Still:
+
+* validate URLs
+* avoid duplicates
+
+---
+
+# 🧠 4. DATA NORMALIZATION
+
+All crawlers must pass data through:
+
+`/utils/normalizeEvent.js`
+
+Final format:
+
+```json
+{
+  "title": "",
+  "platform": "unstop | devfolio",
+  "type": "hackathon | competition | webinar",
+  "url": "",
+  "image": "",
+  "start_date": "",
+  "end_date": "",
+  "mode": "online | offline | hybrid",
+  "tags": [],
+  "organizer": "",
+  "location": ""
+}
+```
+
+---
+
+# 🔁 5. DEDUPLICATION (VERY IMPORTANT)
+
+## Multi-layer deduplication:
+
+### A. In-memory (during scraping)
+
+```javascript
+use Set() based on URL
+```
+
+---
+
+### B. Cross-platform deduplication
+
+Sometimes same hackathon appears on both platforms.
+
+Logic:
+
+* If titles are very similar (string similarity)
+* AND dates overlap
+  → treat as duplicate
+
+Keep one entry only
+
+---
+
+### C. Database level
+
+Ensure:
+
+* UNIQUE(url)
+
+Use UPSERT logic
+
+---
+
+# ⚡ 6. PERFORMANCE OPTIMIZATION
+
+### A. Concurrency control
+
+Use:
+
+```javascript
+p-limit (max 3–5 parallel pages)
+```
+
+---
+
+### B. Avoid unnecessary detail scraping
+
+* If event already exists in DB → skip detail fetch
+
+---
+
+### C. Retry mechanism
+
+* Retry failed pages up to 2 times
+
+---
+
+### D. Timeout handling
+
+* Abort pages taking too long (>15s)
+
+---
+
+# 🧹 7. DATA CLEANING RULES
+
+DO NOT STORE events if:
+
+* invalid URL
+* empty title
+* duplicate
+* missing critical fields
+
+---
+
+# 🗄️ 8. DATABASE INTEGRATION
+
+Store only normalized + cleaned data
+
+Ensure:
+
+* URL is UNIQUE
+* UPSERT instead of insert
+
+---
+
+# 🔄 9. SCRAPER ORCHESTRATION
+
+File: `/scrapers/index.js`
+
+* Run both crawlers:
+
+  * unstopCrawler
+  * devfolioCrawler
+
+* Merge results
+
+* Deduplicate
+
+* Normalize
+
+* Store in DB
+
+---
+
+# ⏱️ 10. SCHEDULER
+
+* Run crawler every 8 hours
+* Also allow manual trigger via API
+
+---
+
+# 📡 11. API UPDATE
+
+Enhance:
+
+GET /events
+
+Add filters:
+
+* platform (unstop/devfolio)
+* type
+* mode
+* tags
+
+---
+
+# 📊 12. LOGGING
+
+Log:
+
+* total scraped per source
+* invalid skipped
+* duplicates removed
+* final stored count
+
+---
+
+# 🚨 13. IMPORTANT CONSTRAINTS
+
+* Only scrape publicly visible data
+* Do NOT bypass authentication
+* Use polite scraping (delays, limited concurrency)
+
+---
+
+# 🚀 FINAL EXPECTATION
+
+After implementation:
+
+* Accurate event links (no dummy URLs)
+* No duplicate events
+* Clean structured data
+* Efficient crawler
+* Multi-source aggregation working
+
+System should prioritize:
+👉 Accuracy > Quantity
+👉 Efficiency > brute-force scraping
+
+---
+
+Ensure project runs with:
+npm run dev
+
+Do not modify UI significantly. Focus on backend, crawler quality, and data correctness.

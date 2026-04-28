@@ -8,19 +8,27 @@ type FetchOptions = {
   source?: string;
 };
 
+type RequestOverrides = {
+  method?: string;
+  body?: string | null;
+};
+
 const DEFAULT_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   Accept: "application/json",
 };
 
+const DEFAULT_TIMEOUT_MS = 15_000;
+
 export async function fetchJsonWithRetry<T = unknown>(
   url: string,
   options: FetchOptions = {},
+  overrides: RequestOverrides = {},
 ): Promise<T | null> {
   const {
     headers = {},
-    timeoutMs = 20_000,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
     maxRetries = 2,
     retryDelayMs = 800,
     source,
@@ -30,6 +38,8 @@ export async function fetchJsonWithRetry<T = unknown>(
   for (let attempt = 1; attempt <= totalAttempts; attempt++) {
     try {
       const response = await fetch(url, {
+        method: overrides.method ?? "GET",
+        body: overrides.body ?? undefined,
         headers: { ...DEFAULT_HEADERS, ...headers },
         signal: AbortSignal.timeout(timeoutMs),
       });

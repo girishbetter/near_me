@@ -89,5 +89,14 @@ export function normalizeEvent(
   };
 
   if (!hasMeaningfulContent(event)) return null;
+  if (isExpired(event.endDate)) return null;
   return event;
+}
+
+const STALE_THRESHOLD_MS = 60 * 24 * 60 * 60 * 1000;
+
+function isExpired(endDate: Date | null | undefined): boolean {
+  if (!endDate) return false;
+  const cutoff = Date.now() - STALE_THRESHOLD_MS;
+  return endDate.getTime() < cutoff;
 }

@@ -1,7 +1,7 @@
 import { logger } from "./logger";
 import { runAllScrapers } from "./scraperRunner";
 
-const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
 let intervalHandle: NodeJS.Timeout | null = null;
 let running = false;
@@ -23,12 +23,12 @@ async function safeRun(): Promise<void> {
 
 export function startScheduler(): void {
   if (intervalHandle) return;
-  logger.info({ intervalMs: SIX_HOURS_MS }, "Starting scrape scheduler");
+  logger.info({ intervalMs: EIGHT_HOURS_MS }, "Starting scrape scheduler");
   // Kick off an initial run after 30s so the server is healthy first.
   setTimeout(() => {
     void safeRun();
   }, 30_000);
   intervalHandle = setInterval(() => {
     void safeRun();
-  }, SIX_HOURS_MS);
+  }, EIGHT_HOURS_MS);
 }
