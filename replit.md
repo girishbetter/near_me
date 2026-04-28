@@ -17,6 +17,24 @@ all sources every 8 hours.
   Handles events, stats aggregates, and scrape job orchestration.
 - `artifacts/mockup-sandbox` — design mockup sandbox.
 
+## Standalone Services (outside /artifacts)
+
+- `python-scraper/` — FastAPI microservice that scrapes Devpost,
+  Devfolio, and Unstop using a hybrid stack (`requests` + `httpx` +
+  Playwright). Writes events directly into the **same** Postgres DB the
+  Node API reads from, using SQLAlchemy + `INSERT ... ON CONFLICT (url)
+  DO UPDATE` for idempotent upserts. Schema is owned by the Node side
+  (Drizzle) — Python only attaches to the existing `events` and
+  `scrape_jobs` tables.
+  - Workflow: `Python Scraper Service` (uvicorn on port 8000)
+  - Endpoints: `GET /healthz`, `GET /sources`, `GET /events`,
+    `POST /scrape[?source=...]`
+  - APScheduler triggers `run_all` every 6 hours (initial run 20s after
+    boot). Concurrency limited to 2 scrapers at a time.
+  - Unstop uses async Playwright (Chromium) with random user agents,
+    stealth init script, infinite-scroll detection, and graceful
+    fallback when the browser cannot launch.
+
 ## Stack
 
 - **Monorepo**: pnpm workspaces
