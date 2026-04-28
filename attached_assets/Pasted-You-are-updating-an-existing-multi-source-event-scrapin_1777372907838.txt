@@ -1,0 +1,291 @@
+You are updating an existing multi-source event scraping system (Node.js + Python hybrid). The current system has the following problems:
+
+---
+
+# 🚨 CURRENT ISSUES
+
+1. Unstop scraper is NOT working (returns zero events)
+2. Only two sources are working:
+
+   * Unstop (broken)
+   * Devpost (working)
+3. System lacks source diversity and reliability
+
+---
+
+# 🎯 OBJECTIVE
+
+Fix and upgrade the system to:
+
+* Successfully scrape events from Unstop
+* Add multiple new reliable event sources
+* Improve scraper robustness and fallback handling
+* Ensure consistent event flow even if one source fails
+
+---
+
+# 🔥 PART 1: FIX UNSTOP SCRAPER (CRITICAL)
+
+Target URL:
+https://unstop.com/competitions?oppstatus=open
+
+---
+
+## ❌ PROBLEM
+
+Unstop is a heavily dynamic React-based site:
+
+* Content loads via API calls (NOT static HTML)
+* Playwright scraping likely failing due to:
+
+  * wrong selectors
+  * not waiting for data
+  * not triggering API calls
+
+---
+
+## ✅ SOLUTION (MANDATORY)
+
+### STEP 1: USE NETWORK INTERCEPTION (BEST METHOD)
+
+Instead of relying only on DOM scraping:
+
+* Use Playwright to:
+
+  * listen to network requests
+  * capture API responses (XHR / fetch)
+
+Example:
+
+* Listen for `/api/search` or similar endpoints
+* Extract JSON directly from response
+
+---
+
+### STEP 2: FALLBACK TO DOM SCRAPING
+
+If API interception fails:
+
+* Use stable selectors
+* Avoid dynamic class names
+* Use anchor tags for links
+
+---
+
+### STEP 3: WAIT STRATEGY (VERY IMPORTANT)
+
+DO NOT use simple timeouts
+
+Use:
+
+* wait_for_load_state("networkidle")
+* wait_for_selector() with proper selector
+
+---
+
+### STEP 4: DEBUG MODE
+
+Add:
+
+* screenshot on failure
+* console logs of page content length
+* log number of elements found
+
+---
+
+### STEP 5: VALIDATION
+
+Ensure scraper returns:
+
+* at least 10+ events
+* valid URLs (not "#")
+* non-empty titles
+
+If not → log error
+
+---
+
+# 🚀 PART 2: ADD MORE EVENT SOURCES
+
+Add new scraper modules for the following platforms:
+
+---
+
+## 1. HackerEarth
+
+https://www.hackerearth.com/challenges/
+
+* Extract:
+
+  * title
+  * URL
+  * start/end date
+
+---
+
+## 2. MLH (Major League Hacking)
+
+https://mlh.io/seasons/2026/events
+
+* Extract:
+
+  * hackathon name
+  * date
+  * location
+  * registration link
+
+---
+
+## 3. Lu.ma (event platform)
+
+https://lu.ma
+
+* Extract tech-related events
+* Filter using keywords:
+
+  * hackathon
+  * tech
+  * startup
+
+---
+
+## 4. Eventbrite (FREE API)
+
+Use API instead of scraping:
+
+* Search keywords:
+
+  * hackathon
+  * developer
+  * coding
+
+---
+
+## 5. GitHub Events (optional advanced)
+
+Search:
+
+* hackathon repos/events
+* extract links
+
+---
+
+# 🧠 PART 3: SMART FILTERING
+
+After scraping:
+
+Only keep events where:
+
+* title contains:
+
+  * hackathon
+  * coding
+  * developer
+  * AI
+  * tech
+
+---
+
+# 🔁 PART 4: SOURCE PRIORITY SYSTEM
+
+Assign priority:
+
+1. Devfolio (high quality)
+2. Devpost
+3. Unstop
+4. MLH
+5. HackerEarth
+6. Others
+
+---
+
+# 🧹 PART 5: DEDUPLICATION IMPROVEMENT
+
+Improve duplicate detection:
+
+* Match by:
+
+  * URL (primary)
+  * title similarity (secondary)
+  * date overlap
+
+---
+
+# ⚡ PART 6: RELIABILITY IMPROVEMENTS
+
+### A. Partial Failure Handling
+
+If one scraper fails:
+
+* others MUST still run
+
+---
+
+### B. Retry Logic
+
+Retry failed scrapers 2 times
+
+---
+
+### C. Timeout Handling
+
+Kill scraper if:
+
+* runs longer than 30 seconds
+
+---
+
+# 📊 PART 7: LOGGING (IMPORTANT)
+
+Log per source:
+
+* events fetched
+* failures
+* duplicates removed
+
+Example:
+Unstop: 0 events → ERROR
+Devpost: 25 events
+MLH: 12 events
+
+---
+
+# 🧪 PART 8: TESTING
+
+After implementation:
+
+* Ensure:
+
+  * Unstop returns real events
+  * at least 3+ sources working
+  * total events > 30
+
+---
+
+# 🚀 FINAL EXPECTATION
+
+After update:
+
+* Unstop scraper WORKS (non-zero results)
+* Multiple sources integrated (5+)
+* Clean, deduplicated data
+* System resilient to failures
+* Accurate event links
+
+---
+
+# ⚠️ CONSTRAINTS
+
+* Do NOT hardcode data
+* Do NOT remove existing working scrapers
+* Keep modular structure
+* Maintain performance
+
+---
+
+Focus on:
+👉 Accuracy
+👉 Reliability
+👉 Multi-source coverage
+
+Do NOT focus on UI.

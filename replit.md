@@ -19,13 +19,31 @@ all sources every 8 hours.
 
 ## Standalone Services (outside /artifacts)
 
-- `python-scraper/` — FastAPI microservice that scrapes Devpost,
-  Devfolio, and Unstop using a hybrid stack (`requests` + `httpx` +
-  Playwright). Writes events directly into the **same** Postgres DB the
-  Node API reads from, using SQLAlchemy + `INSERT ... ON CONFLICT (url)
-  DO UPDATE` for idempotent upserts. Schema is owned by the Node side
-  (Drizzle) — Python only attaches to the existing `events` and
-  `scrape_jobs` tables.
+- `python-scraper/` — FastAPI microservice that scrapes seven sources
+  using a hybrid stack (`requests` + `httpx` + Playwright). Writes
+  events directly into the **same** Postgres DB the Node API reads from,
+  using SQLAlchemy + `INSERT ... ON CONFLICT (url) DO UPDATE` for
+  idempotent upserts. Schema is owned by the Node side (Drizzle) —
+  Python only attaches to the existing `events` and `scrape_jobs`
+  tables.
+  - **Sources** (in priority order): `devfolio` → `devpost` → `unstop` →
+    `mlh` → `hackerearth` → `luma` → `eventbrite`. Priority is used to
+    pick the winner during cross-source dedupe.
+  - **Unstop** uses Playwright network-interception of the
+    `/api/public/opportunity/search-result` XHR (with a direct-API
+    shortcut and a DOM-scrape fallback), which fixed the long-standing
+    "0 events" problem.
+  - **Reliability** (services/aggregator.py): each scraper runs with a
+    30 s timeout + 2 retries, the suite runs with a concurrency cap of
+    3, and `gather(return_exceptions=True)` guarantees one failing
+    source can't take down the others.
+  - **Filtering** (services/filter.py): non-trusted sources (`luma`,
+    `eventbrite`) are passed through a tech/dev keyword filter before
+    upsert; trusted hackathon platforms bypass the filter.
+  - **Cross-source dedupe** (services/dedupe.py): primary match by URL,
+    secondary match by Jaccard title similarity ≥ 0.7 + 7-day date
+    overlap; the higher-priority source wins and missing fields are
+    merged from the loser.
   - Workflow: `Python Scraper Service` (uvicorn on port 8000)
   - Endpoints: `GET /healthz`, `GET /sources`, `GET /events`,
     `POST /scrape[?source=...]`

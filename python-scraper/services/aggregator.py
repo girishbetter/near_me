@@ -1,6 +1,6 @@
-"""Aggregator: runs all scrapers concurrently, normalizes + dedupes the
-results, then upserts them into the shared Postgres `events` table and
-records a row in `scrape_jobs`."""
+"""Aggregator: runs every scraper concurrently with retry + timeout, then
+filters, cross-source dedupes, upserts into the shared `events` table,
+and records each run in `scrape_jobs`."""
 from __future__ import annotations
 
 import asyncio
@@ -17,14 +17,37 @@ from models.raw_event import RawEvent
 from scrapers.base import BaseScraper
 from scrapers.devfolio_scraper import DevfolioScraper
 from scrapers.devpost_scraper import DevpostScraper
+from scrapers.eventbrite_scraper import EventbriteScraper
+from scrapers.hackerearth_scraper import HackerEarthScraper
+from scrapers.luma_scraper import LumaScraper
+from scrapers.mlh_scraper import MLHScraper
 from scrapers.unstop_scraper import UnstopScraper
+from services.dedupe import cross_source_dedupe, priority
+from services.filter import filter_events
 from services.normalize import normalize_event
 
 logger = logging.getLogger(__name__)
 
+# Per-scraper hard wall-clock cap (seconds). Anything still running gets
+# cancelled — better one missing source than a stuck pipeline.
+SCRAPER_TIMEOUT = 30.0
+RETRY_ATTEMPTS = 2
+CONCURRENCY = 3
+
 
 def get_scrapers() -> list[BaseScraper]:
-    return [DevpostScraper(), DevfolioScraper(), UnstopScraper()]
+    """All scrapers, sorted by source priority (high → low)."""
+    scrapers: list[BaseScraper] = [
+        DevfolioScraper(),
+        DevpostScraper(),
+        UnstopScraper(),
+        MLHScraper(),
+        HackerEarthScraper(),
+        LumaScraper(),
+        EventbriteScraper(),
+    ]
+    scrapers.sort(key=lambda s: priority(s.source))
+    return scrapers
 
 
 def get_scraper(source: str) -> BaseScraper | None:
@@ -44,25 +67,11 @@ def _dedupe_by_url(rows: Iterable[dict]) -> list[dict]:
         if existing is None:
             by_url[url] = row
             continue
-        # Keep the row with more populated fields.
         score_existing = sum(1 for v in existing.values() if v not in (None, "", []))
         score_new = sum(1 for v in row.values() if v not in (None, "", []))
         if score_new > score_existing:
             by_url[url] = row
     return list(by_url.values())
-
-
-def _sort_by_date(rows: list[dict]) -> list[dict]:
-    def key(r: dict):
-        end = r.get("end_date")
-        start = r.get("start_date")
-        d = end or start
-        if d is None:
-            return (1, datetime.max.replace(tzinfo=timezone.utc))
-        if d.tzinfo is None:
-            d = d.replace(tzinfo=timezone.utc)
-        return (0, d)
-    return sorted(rows, key=key)
 
 
 def _upsert_events(rows: list[dict]) -> int:
@@ -108,29 +117,51 @@ def _record_job(
     upserted: int,
     error: str | None = None,
 ) -> None:
-    with session_scope() as session:
-        session.add(
-            ScrapeJob(
-                source=source,
-                status=status,
-                events_found=found,
-                events_upserted=upserted,
-                error_message=error,
-                started_at=started_at,
-                finished_at=datetime.now(timezone.utc),
+    try:
+        with session_scope() as session:
+            session.add(
+                ScrapeJob(
+                    source=source,
+                    status=status,
+                    events_found=found,
+                    events_upserted=upserted,
+                    error_message=error,
+                    started_at=started_at,
+                    finished_at=datetime.now(timezone.utc),
+                )
             )
-        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[%s] could not record scrape_job: %s", source, exc)
+
+
+async def _scrape_with_retry(scraper: BaseScraper) -> tuple[list[RawEvent], str | None]:
+    """Run a single scraper with timeout + N retries.
+
+    Returns (raw_events, error_string_or_none). A retry is attempted on
+    *any* failure (timeout, network, parse). The last error message is
+    returned so we can report it on the scrape_jobs row."""
+    last_err: str | None = None
+    for attempt in range(1, RETRY_ATTEMPTS + 1):
+        try:
+            results = await asyncio.wait_for(
+                scraper.safe_scrape(), timeout=SCRAPER_TIMEOUT
+            )
+            return list(results), None
+        except asyncio.TimeoutError:
+            last_err = f"timeout after {SCRAPER_TIMEOUT}s"
+            logger.warning("[%s] attempt %s timed out", scraper.source, attempt)
+        except Exception as exc:  # noqa: BLE001
+            last_err = f"{type(exc).__name__}: {exc}"
+            logger.warning("[%s] attempt %s failed: %s", scraper.source, attempt, exc)
+        if attempt < RETRY_ATTEMPTS:
+            await asyncio.sleep(1.5 * attempt)
+    return [], last_err
 
 
 async def run_scraper(scraper: BaseScraper) -> dict:
+    """Scrape a single source end-to-end (retry, normalize, filter, upsert)."""
     started_at = datetime.now(timezone.utc)
-    raw_events: list[RawEvent] = []
-    error: str | None = None
-    try:
-        raw_events = await scraper.safe_scrape()
-    except Exception as exc:  # noqa: BLE001
-        error = str(exc)
-        logger.exception("[%s] unhandled error: %s", scraper.source, exc)
+    raw_events, error = await _scrape_with_retry(scraper)
 
     normalized = [
         n
@@ -138,14 +169,17 @@ async def run_scraper(scraper: BaseScraper) -> dict:
         if n is not None
     ]
     deduped = _dedupe_by_url(normalized)
-    upserted = 0
-    try:
-        upserted = _upsert_events(deduped)
-    except Exception as exc:  # noqa: BLE001
-        error = (error + " | " if error else "") + f"upsert failed: {exc}"
-        logger.exception("[%s] upsert failed: %s", scraper.source, exc)
+    kept, dropped_filter = filter_events(deduped)
 
-    status = "error" if error else "success"
+    upserted = 0
+    if kept:
+        try:
+            upserted = _upsert_events(kept)
+        except Exception as exc:  # noqa: BLE001
+            error = (error + " | " if error else "") + f"upsert failed: {exc}"
+            logger.exception("[%s] upsert failed: %s", scraper.source, exc)
+
+    status = "error" if (error or len(raw_events) == 0) else "success"
     _record_job(
         source=scraper.source,
         status=status,
@@ -154,33 +188,70 @@ async def run_scraper(scraper: BaseScraper) -> dict:
         upserted=upserted,
         error=error,
     )
-    logger.info(
-        "[%s] done: found=%d upserted=%d status=%s",
+
+    duplicates_removed = len(normalized) - len(deduped)
+    log = logger.error if status == "error" and not raw_events else logger.info
+    log(
+        "[%s] found=%d duplicates_removed=%d filter_dropped=%d upserted=%d status=%s",
         scraper.source,
         len(raw_events),
+        duplicates_removed,
+        dropped_filter,
         upserted,
         status,
     )
+
     return {
         "source": scraper.source,
+        "priority": priority(scraper.source),
         "found": len(raw_events),
+        "duplicates_removed": duplicates_removed,
+        "filter_dropped": dropped_filter,
         "upserted": upserted,
         "status": status,
         "error": error,
     }
 
 
-async def run_all() -> list[dict]:
+async def run_all() -> dict:
+    """Run every scraper, then a final cross-source dedupe pass.
+
+    Per-source upserts already happened in run_scraper. The cross-source
+    pass here is just for reporting / observability (it tells us how many
+    duplicates exist across sources that we collapsed at read time)."""
     scrapers = get_scrapers()
-    # Limit concurrency: keep API + Playwright out of each other's way.
-    sem = asyncio.Semaphore(2)
+    sem = asyncio.Semaphore(CONCURRENCY)
 
     async def _bounded(s: BaseScraper):
         async with sem:
             return await run_scraper(s)
 
-    results = await asyncio.gather(*[_bounded(s) for s in scrapers])
-    return list(results)
+    # gather(return_exceptions=True) → one scraper crashing never takes
+    # down the others.
+    results = await asyncio.gather(
+        *[_bounded(s) for s in scrapers], return_exceptions=True
+    )
+    clean: list[dict] = []
+    for r in results:
+        if isinstance(r, Exception):
+            logger.exception("[run_all] scraper crashed: %s", r)
+            continue
+        clean.append(r)
+
+    # Cross-source reporting pass on the freshly upserted rows.
+    sample = list_events(limit=500)
+    _, cross_dups = cross_source_dedupe(sample)
+
+    summary = {
+        "results": clean,
+        "total_found": sum(r["found"] for r in clean),
+        "total_upserted": sum(r["upserted"] for r in clean),
+        "cross_source_duplicates": cross_dups,
+        "sources_succeeded": sum(1 for r in clean if r["status"] == "success"),
+        "sources_failed": sum(1 for r in clean if r["status"] == "error"),
+    }
+    logger.info("[run_all] summary: %s", summary)
+    return summary
 
 
 def list_events(limit: int = 100, offset: int = 0) -> list[dict]:
