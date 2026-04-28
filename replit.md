@@ -60,6 +60,8 @@ All routes mounted under `/api`:
 
 - `GET  /healthz`
 - `GET  /events?type&platform&mode&tag&search&limit&offset`
+- `POST /events` (manual event creation, body must include `title`,
+  valid `https://` `url`, `type`, `mode`)
 - `GET  /events/:id`
 - `GET  /stats/overview`
 - `GET  /stats/trending-tags?limit`

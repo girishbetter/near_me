@@ -7,6 +7,9 @@
  */
 
 export * from "./apiError";
+export * from "./createEventRequest";
+export * from "./createEventRequestMode";
+export * from "./createEventRequestType";
 export * from "./event";
 export * from "./eventListResponse";
 export * from "./eventMode";

@@ -15,6 +15,26 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * @summary Create an event manually
+ */
+export const createEventBodyTitleMax = 500;
+
+export const CreateEventBody = zod.object({
+  title: zod.string().min(1).max(createEventBodyTitleMax),
+  url: zod.string().min(1).describe("Must start with https:\/\/"),
+  type: zod.enum(["hackathon", "webinar", "workshop", "other"]),
+  mode: zod.enum(["online", "offline", "hybrid", "unknown"]),
+  image: zod.string().nullish(),
+  startDate: zod.string().nullish(),
+  endDate: zod.string().nullish(),
+  tags: zod.array(zod.string()).optional(),
+  organizer: zod.string().nullish(),
+  location: zod.string().nullish(),
+  prize: zod.string().nullish(),
+  description: zod.string().nullish(),
+});
+
+/**
  * @summary List events with filters
  */
 export const listEventsQueryLimitDefault = 60;

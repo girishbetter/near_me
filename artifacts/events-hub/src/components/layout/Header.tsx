@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useHealthCheck } from "@workspace/api-client-react";
-import { Zap, Activity } from "lucide-react";
+import { Zap, Plus } from "lucide-react";
 
 export function Header() {
   const { data: health } = useHealthCheck();
@@ -17,18 +17,30 @@ export function Header() {
               TechEvents
             </span>
           </Link>
-          
+
           <nav className="hidden md:flex items-center gap-1">
-            <Link href="/events" className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors">
+            <Link
+              href="/events"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors"
+            >
               Browse
             </Link>
-            <Link href="/scrape" className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors">
+            <Link
+              href="/scrape"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors"
+            >
               Data Pipeline
+            </Link>
+            <Link
+              href="/events/new"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors"
+            >
+              Add Event
             </Link>
           </nav>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {health && (
             <div className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-muted-foreground bg-secondary/30 px-2.5 py-1 rounded-full border border-border/50">
               <span className="relative flex h-2 w-2">
@@ -38,8 +50,12 @@ export function Header() {
               API {health.status}
             </div>
           )}
-          <Link href="/events" className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md text-sm font-semibold transition-all hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]">
-            Explore Events
+          <Link
+            href="/events/new"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md text-sm font-semibold transition-all hover:shadow-[0_0_15px_rgba(6,182,212,0.4)] inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            Add Event
           </Link>
         </div>
       </div>

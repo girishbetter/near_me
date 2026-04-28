@@ -18,6 +18,49 @@ export interface ScrapeRequest {
   source?: string;
 }
 
+export type CreateEventRequestType =
+  (typeof CreateEventRequestType)[keyof typeof CreateEventRequestType];
+
+export const CreateEventRequestType = {
+  hackathon: "hackathon",
+  webinar: "webinar",
+  workshop: "workshop",
+  other: "other",
+} as const;
+
+export type CreateEventRequestMode =
+  (typeof CreateEventRequestMode)[keyof typeof CreateEventRequestMode];
+
+export const CreateEventRequestMode = {
+  online: "online",
+  offline: "offline",
+  hybrid: "hybrid",
+  unknown: "unknown",
+} as const;
+
+export interface CreateEventRequest {
+  /**
+   * @minLength 1
+   * @maxLength 500
+   */
+  title: string;
+  /**
+   * Must start with https://
+   * @minLength 1
+   */
+  url: string;
+  type: CreateEventRequestType;
+  mode: CreateEventRequestMode;
+  image?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  tags?: string[];
+  organizer?: string | null;
+  location?: string | null;
+  prize?: string | null;
+  description?: string | null;
+}
+
 export type EventType = (typeof EventType)[keyof typeof EventType];
 
 export const EventType = {

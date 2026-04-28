@@ -1,14 +1,96 @@
 import { Router, type IRouter } from "express";
-import { db, eventsTable } from "@workspace/db";
+import { db, eventsTable, type InsertEvent } from "@workspace/db";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import {
+  CreateEventBody,
   GetEventParams,
   GetEventResponse,
   ListEventsQueryParams,
   ListEventsResponse,
 } from "@workspace/api-zod";
+import { isValidUrl } from "../lib/validation";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+router.post("/events", async (req, res): Promise<void> => {
+  const parsed = CreateEventBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ message: parsed.error.message });
+    return;
+  }
+
+  const data = parsed.data;
+  if (!isValidUrl(data.url)) {
+    res
+      .status(400)
+      .json({ message: "URL must start with https:// and be a valid link" });
+    return;
+  }
+
+  const startDate = data.startDate ? new Date(data.startDate) : null;
+  const endDate = data.endDate ? new Date(data.endDate) : null;
+  if (startDate && Number.isNaN(startDate.getTime())) {
+    res.status(400).json({ message: "Invalid startDate" });
+    return;
+  }
+  if (endDate && Number.isNaN(endDate.getTime())) {
+    res.status(400).json({ message: "Invalid endDate" });
+    return;
+  }
+
+  const tags = Array.from(
+    new Set(
+      (data.tags ?? [])
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0 && t.length < 60),
+    ),
+  ).slice(0, 12);
+
+  const insertValue: InsertEvent = {
+    title: data.title.trim().slice(0, 500),
+    platform: "manual",
+    type: data.type,
+    url: data.url.trim(),
+    image: data.image?.trim() || null,
+    startDate,
+    endDate,
+    mode: data.mode,
+    tags,
+    organizer: data.organizer?.trim() || null,
+    location: data.location?.trim() || null,
+    prize: data.prize?.trim() || null,
+    description: data.description?.trim() || null,
+  };
+
+  try {
+    const [created] = await db
+      .insert(eventsTable)
+      .values(insertValue)
+      .returning();
+    if (!created) {
+      res.status(500).json({ message: "Failed to create event" });
+      return;
+    }
+    logger.info({ id: created.id, url: created.url }, "Manual event created");
+    res.status(201).json(GetEventResponse.parse(serializeEvent(created)));
+  } catch (err) {
+    const code = (err as { code?: string; cause?: { code?: string } })?.code ??
+      (err as { cause?: { code?: string } })?.cause?.code;
+    const message = err instanceof Error ? err.message : String(err);
+    if (
+      code === "23505" ||
+      /duplicate key|unique constraint/i.test(message)
+    ) {
+      res
+        .status(409)
+        .json({ message: "An event with this URL already exists" });
+      return;
+    }
+    logger.error({ err }, "Failed to create event");
+    res.status(500).json({ message: "Failed to create event" });
+  }
+});
 
 router.get("/events", async (req, res): Promise<void> => {
   const parsed = ListEventsQueryParams.safeParse(req.query);

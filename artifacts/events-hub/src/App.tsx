@@ -9,6 +9,7 @@ import Home from "@/pages/Home";
 import Browse from "@/pages/Browse";
 import EventDetail from "@/pages/EventDetail";
 import ScrapeControl from "@/pages/ScrapeControl";
+import AddEvent from "@/pages/AddEvent";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -18,6 +19,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/events" component={Browse} />
+      <Route path="/events/new" component={AddEvent} />
       <Route path="/events/:id" component={EventDetail} />
       <Route path="/scrape" component={ScrapeControl} />
       <Route component={NotFound} />

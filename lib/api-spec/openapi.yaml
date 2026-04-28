@@ -31,6 +31,35 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 
   /events:
+    post:
+      operationId: createEvent
+      tags: [events]
+      summary: Create an event manually
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventRequest"
+      responses:
+        "201":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Duplicate URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     get:
       operationId: listEvents
       tags: [events]
@@ -243,6 +272,50 @@ components:
         source:
           type: string
           description: Optional source slug. Omit to run all scrapers.
+
+    CreateEventRequest:
+      type: object
+      required: [title, url, type, mode]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+        url:
+          type: string
+          minLength: 1
+          description: Must start with https://
+        type:
+          type: string
+          enum: [hackathon, webinar, workshop, other]
+        mode:
+          type: string
+          enum: [online, offline, hybrid, unknown]
+        image:
+          type: string
+          nullable: true
+        startDate:
+          type: string
+          nullable: true
+        endDate:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        organizer:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        prize:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
 
     Event:
       type: object
