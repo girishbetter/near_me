@@ -1,0 +1,270 @@
+You are updating an existing full-stack project that already contains:
+
+* Node.js + Express backend
+* PostgreSQL database
+* Playwright-based scrapers (JavaScript)
+* Event aggregation APIs
+
+⚠️ IMPORTANT:
+DO NOT replace or delete existing Node.js code.
+DO NOT rebuild the project from scratch.
+
+Your task is to **add a new Python-based scraping microservice inside the SAME project** and integrate it with the existing system.
+
+---
+
+# 🎯 OBJECTIVE
+
+Extend the current system by adding a **hybrid event scraping engine** that:
+
+* Scrapes events from:
+
+  * Devpost (API / HTML)
+  * Devfolio (GraphQL)
+  * Unstop (Playwright)
+* Runs as a Python service
+* Stores data in the SAME PostgreSQL database
+* Exposes data to existing Node.js backend OR runs independently via API
+
+---
+
+# 🧱 ARCHITECTURE (VERY IMPORTANT)
+
+You must implement a **dual-backend architecture inside the same project**:
+
+```plaintext
+/project
+  /node-backend   (existing - DO NOT MODIFY MUCH)
+  /python-scraper (NEW - create this)
+```
+
+---
+
+# 🐍 1. CREATE PYTHON SERVICE
+
+Create a new folder:
+
+```plaintext
+/python-scraper
+```
+
+Inside it:
+
+```plaintext
+/scrapers
+  devpost_scraper.py
+  devfolio_scraper.py
+  unstop_scraper.py
+/models
+  event_model.py
+/services
+  aggregator.py
+/db
+  database.py
+main.py
+requirements.txt
+```
+
+---
+
+# 🔌 2. DATABASE INTEGRATION (CRITICAL)
+
+⚠️ Use the SAME PostgreSQL database already used by Node.js.
+
+* Do NOT create a separate DB
+* Match the existing `events` table schema
+* Ensure compatibility
+
+Use SQLAlchemy with PostgreSQL connection string
+
+---
+
+# 📊 3. UNIFIED EVENT SCHEMA
+
+Ensure Python service uses SAME schema as Node backend:
+
+```json
+{
+  "title": "",
+  "platform": "",
+  "url": "",
+  "image": "",
+  "start_date": "",
+  "end_date": "",
+  "location": "",
+  "mode": "online/offline/hybrid",
+  "tags": [],
+  "organizer": ""
+}
+```
+
+---
+
+# 🔍 4. SCRAPER IMPLEMENTATION
+
+## Devpost
+
+* Use requests
+* Extract hackathons
+* Handle pagination
+
+## Devfolio
+
+* Use httpx
+* Implement GraphQL scraping
+* Cursor-based pagination
+
+## Unstop (CRITICAL)
+
+URL:
+https://unstop.com/competitions?oppstatus=open
+
+Use:
+
+* async Playwright
+* infinite scroll
+* robust selectors
+
+---
+
+# 🔐 5. ANTI-BOT CONFIG (UNSTOP)
+
+Implement:
+
+* Random user-agent
+* Delays between actions
+* Wait for network idle
+* Disable webdriver flag
+* Headless browser (configurable)
+
+---
+
+# 🔁 6. SCROLL LOGIC
+
+Implement infinite scroll safely:
+
+* Stop when no new content OR after max iterations
+* Avoid infinite loops
+
+---
+
+# 🧹 7. DATA CLEANING
+
+* Remove duplicates (URL-based)
+* Normalize dates (ISO format)
+* Trim strings
+* Reject invalid entries
+
+---
+
+# 🧠 8. AGGREGATOR SERVICE
+
+Combine all scrapers:
+
+* Merge results
+* Deduplicate
+* Sort by date
+
+---
+
+# 🗄️ 9. DATABASE WRITE
+
+* Use UPSERT (no duplicates)
+* Respect unique URL constraint
+
+---
+
+# 🌐 10. PYTHON API (FastAPI)
+
+Expose:
+
+GET /events
+
+Return all events (optional if Node handles API)
+
+---
+
+# 🔗 11. INTEGRATION WITH NODE BACKEND
+
+Choose ONE:
+
+### Option A (Preferred):
+
+Python writes directly to DB → Node reads from DB
+
+### Option B:
+
+Node calls Python API → fetches events
+
+---
+
+# ⏱️ 12. SCHEDULER
+
+Use APScheduler:
+
+* Run every 6 hours
+* Trigger all scrapers
+* Store results
+
+---
+
+# 📈 13. LOGGING
+
+Log:
+
+* start/end of each scraper
+* events fetched
+* errors
+
+---
+
+# ⚡ 14. PERFORMANCE
+
+* Use async Playwright
+* Parallel execution where safe
+* Limit concurrency
+
+---
+
+# 🚨 15. CRITICAL CONSTRAINTS
+
+* DO NOT break existing Node.js backend
+* DO NOT duplicate functionality unnecessarily
+* DO NOT create a new database
+* KEEP everything modular
+
+---
+
+# ▶️ 16. RUNNING BOTH SERVICES
+
+Ensure both can run:
+
+Node:
+
+```bash
+npm run dev
+```
+
+Python:
+
+```bash
+cd python-scraper
+pip install -r requirements.txt
+playwright install
+uvicorn main:app --reload
+```
+
+---
+
+# 🚀 FINAL EXPECTATION
+
+After update:
+
+* Existing Node app still works
+* Python scraper runs independently
+* Data flows into same DB
+* Multi-source scraping works
+* No duplicate events
+* Accurate, clean data
+
+System should behave like a **modular production system with separate scraping service**.
