@@ -1,6 +1,8 @@
 import type { InsertEvent } from "@workspace/db";
+import { fetchJsonWithRetry } from "../lib/fetchWithRetry";
 import { logger } from "../lib/logger";
 import { normalizeEvent, type RawEvent } from "../lib/normalize";
+import { dedupeByUrl } from "../lib/validation";
 import type { Scraper } from "./types";
 
 const DEVPOST_API =
@@ -61,39 +63,39 @@ export const devpostScraper: Scraper = {
   source: "devpost",
   async scrape(): Promise<InsertEvent[]> {
     logger.info({ source: "devpost" }, "Starting Devpost scrape");
-    try {
-      const response = await fetch(DEVPOST_API, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (!response.ok) {
-        logger.warn(
-          { source: "devpost", status: response.status },
-          "Devpost request failed",
-        );
-        return [];
+    const json = await fetchJsonWithRetry<DevpostResponse>(DEVPOST_API, {
+      source: "devpost",
+    });
+    if (!json) return [];
+
+    const items = json.hackathons ?? [];
+    let invalidCount = 0;
+    const events: InsertEvent[] = [];
+    for (const item of items) {
+      const raw = mapToRaw(item);
+      if (!raw) {
+        invalidCount++;
+        continue;
       }
-      const json = (await response.json()) as DevpostResponse;
-      const items = json.hackathons ?? [];
-      const events: InsertEvent[] = [];
-      for (const item of items) {
-        const raw = mapToRaw(item);
-        if (!raw) continue;
-        const normalized = normalizeEvent(raw, "devpost");
-        if (normalized) events.push(normalized);
+      const normalized = normalizeEvent(raw, "devpost");
+      if (!normalized) {
+        invalidCount++;
+        continue;
       }
-      logger.info(
-        { source: "devpost", count: events.length },
-        "Devpost scrape complete",
-      );
-      return events;
-    } catch (err) {
-      logger.error({ err, source: "devpost" }, "Devpost scrape failed");
-      return [];
+      events.push(normalized);
     }
+
+    const { unique, duplicates } = dedupeByUrl(events);
+    logger.info(
+      {
+        source: "devpost",
+        rawCount: items.length,
+        invalid: invalidCount,
+        duplicatesRemoved: duplicates,
+        finalCount: unique.length,
+      },
+      "Devpost scrape complete",
+    );
+    return unique;
   },
 };

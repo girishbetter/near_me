@@ -1,6 +1,8 @@
 import type { InsertEvent } from "@workspace/db";
+import { fetchJsonWithRetry } from "../lib/fetchWithRetry";
 import { logger } from "../lib/logger";
 import { normalizeEvent, type RawEvent } from "../lib/normalize";
+import { dedupeByUrl } from "../lib/validation";
 import type { Scraper } from "./types";
 
 const UNSTOP_API =
@@ -28,7 +30,8 @@ type UnstopResponse = {
 };
 
 function buildUrl(opp: UnstopOpportunity): string | null {
-  if (opp.public_url) return opp.public_url;
+  if (opp.public_url && opp.public_url.startsWith("https://"))
+    return opp.public_url;
   if (opp.seo_url) return `https://unstop.com/o/${opp.seo_url}`;
   return null;
 }
@@ -72,39 +75,39 @@ export const unstopScraper: Scraper = {
   source: "unstop",
   async scrape(): Promise<InsertEvent[]> {
     logger.info({ source: "unstop" }, "Starting Unstop scrape");
-    try {
-      const response = await fetch(UNSTOP_API, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (!response.ok) {
-        logger.warn(
-          { source: "unstop", status: response.status },
-          "Unstop request failed",
-        );
-        return [];
+    const json = await fetchJsonWithRetry<UnstopResponse>(UNSTOP_API, {
+      source: "unstop",
+    });
+    if (!json) return [];
+
+    const items = json.data?.data ?? [];
+    let invalidCount = 0;
+    const events: InsertEvent[] = [];
+    for (const item of items) {
+      const raw = mapToRaw(item);
+      if (!raw) {
+        invalidCount++;
+        continue;
       }
-      const json = (await response.json()) as UnstopResponse;
-      const items = json.data?.data ?? [];
-      const events: InsertEvent[] = [];
-      for (const item of items) {
-        const raw = mapToRaw(item);
-        if (!raw) continue;
-        const normalized = normalizeEvent(raw, "unstop");
-        if (normalized) events.push(normalized);
+      const normalized = normalizeEvent(raw, "unstop");
+      if (!normalized) {
+        invalidCount++;
+        continue;
       }
-      logger.info(
-        { source: "unstop", count: events.length },
-        "Unstop scrape complete",
-      );
-      return events;
-    } catch (err) {
-      logger.error({ err, source: "unstop" }, "Unstop scrape failed");
-      return [];
+      events.push(normalized);
     }
+
+    const { unique, duplicates } = dedupeByUrl(events);
+    logger.info(
+      {
+        source: "unstop",
+        rawCount: items.length,
+        invalid: invalidCount,
+        duplicatesRemoved: duplicates,
+        finalCount: unique.length,
+      },
+      "Unstop scrape complete",
+    );
+    return unique;
   },
 };

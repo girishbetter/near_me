@@ -1,4 +1,5 @@
 import type { InsertEvent } from "@workspace/db";
+import { hasMeaningfulContent, isValidUrl } from "./validation";
 
 export type RawEvent = {
   title?: string | null;
@@ -58,16 +59,20 @@ export function normalizeEvent(
   const title = raw.title?.trim();
   const url = raw.url?.trim();
   if (!title || !url) return null;
+  if (!isValidUrl(url)) return null;
 
   const end = parseDate(raw.endDate ?? raw.deadline);
   const start = parseDate(raw.startDate);
 
-  const tags = (raw.tags ?? [])
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0 && t.length < 60)
-    .slice(0, 12);
+  const tags = Array.from(
+    new Set(
+      (raw.tags ?? [])
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0 && t.length < 60),
+    ),
+  ).slice(0, 12);
 
-  return {
+  const event: InsertEvent = {
     title: title.slice(0, 500),
     platform: source,
     type: normalizeType(raw.type),
@@ -82,4 +87,7 @@ export function normalizeEvent(
     prize: raw.prize?.trim() || null,
     description: raw.description?.trim() || null,
   };
+
+  if (!hasMeaningfulContent(event)) return null;
+  return event;
 }

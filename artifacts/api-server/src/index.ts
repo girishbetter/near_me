@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./lib/scheduler";
+import { cleanupInvalidEvents } from "./lib/scraperRunner";
 import { seedIfEmpty } from "./lib/seed";
 
 const rawPort = process.env["PORT"];
@@ -24,7 +25,9 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  void seedIfEmpty()
+  void cleanupInvalidEvents()
+    .catch((err) => logger.error({ err }, "Cleanup failed"))
+    .then(() => seedIfEmpty())
     .catch((err) => logger.error({ err }, "Seed failed"))
     .finally(() => startScheduler());
 });
