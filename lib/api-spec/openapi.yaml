@@ -3,20 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Tech Events Hub API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: events
+    description: Event operations
+  - name: stats
+    description: Stats and aggregates
+  - name: scrape
+    description: Scraping operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +29,393 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: List events with filters
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [hackathon, webinar, workshop, all]
+        - name: platform
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [online, offline, hybrid, all]
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 60
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Events list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventListResponse"
+
+  /events/{id}:
+    get:
+      operationId: getEvent
+      tags: [events]
+      summary: Get a single event by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /stats/overview:
+    get:
+      operationId: getStatsOverview
+      tags: [stats]
+      summary: Aggregate dashboard stats
+      responses:
+        "200":
+          description: Overview stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsOverview"
+
+  /stats/trending-tags:
+    get:
+      operationId: getTrendingTags
+      tags: [stats]
+      summary: Most common tags across events
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+      responses:
+        "200":
+          description: Trending tags
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tags]
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TagCount"
+
+  /stats/upcoming-deadlines:
+    get:
+      operationId: getUpcomingDeadlines
+      tags: [stats]
+      summary: Events with closest deadlines
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 8
+      responses:
+        "200":
+          description: Upcoming deadlines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventListResponse"
+
+  /scrape:
+    post:
+      operationId: triggerScrape
+      tags: [scrape]
+      summary: Trigger a scrape job (manual)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScrapeRequest"
+      responses:
+        "200":
+          description: Scrape result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapeResult"
+
+  /scrape/jobs:
+    get:
+      operationId: listScrapeJobs
+      tags: [scrape]
+      summary: List recent scrape jobs
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        "200":
+          description: Recent jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [jobs]
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ScrapeJob"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    ApiError:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    ScrapeRequest:
+      type: object
+      properties:
+        source:
+          type: string
+          description: Optional source slug. Omit to run all scrapers.
+
+    Event:
+      type: object
+      required:
+        - id
+        - title
+        - platform
+        - type
+        - url
+        - mode
+        - tags
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        platform:
+          type: string
+        type:
+          type: string
+          enum: [hackathon, webinar, workshop, other]
+        url:
+          type: string
+        image:
+          type: string
+          nullable: true
+        startDate:
+          type: string
+          nullable: true
+        endDate:
+          type: string
+          nullable: true
+        mode:
+          type: string
+          enum: [online, offline, hybrid, unknown]
+        tags:
+          type: array
+          items:
+            type: string
+        organizer:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        prize:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    EventListResponse:
+      type: object
+      required: [events, total]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        total:
+          type: integer
+
+    PlatformCount:
+      type: object
+      required: [platform, count]
+      properties:
+        platform:
+          type: string
+        count:
+          type: integer
+
+    TypeCount:
+      type: object
+      required: [type, count]
+      properties:
+        type:
+          type: string
+        count:
+          type: integer
+
+    ModeCount:
+      type: object
+      required: [mode, count]
+      properties:
+        mode:
+          type: string
+        count:
+          type: integer
+
+    TagCount:
+      type: object
+      required: [tag, count]
+      properties:
+        tag:
+          type: string
+        count:
+          type: integer
+
+    StatsOverview:
+      type: object
+      required:
+        - totalEvents
+        - hackathons
+        - webinars
+        - workshops
+        - upcomingThisWeek
+        - byPlatform
+        - byType
+        - byMode
+        - lastScrapedAt
+      properties:
+        totalEvents:
+          type: integer
+        hackathons:
+          type: integer
+        webinars:
+          type: integer
+        workshops:
+          type: integer
+        upcomingThisWeek:
+          type: integer
+        byPlatform:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformCount"
+        byType:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypeCount"
+        byMode:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModeCount"
+        lastScrapedAt:
+          type: string
+          nullable: true
+
+    ScrapeJob:
+      type: object
+      required: [id, source, status, eventsFound, eventsUpserted, startedAt]
+      properties:
+        id:
+          type: integer
+        source:
+          type: string
+        status:
+          type: string
+          enum: [running, success, error]
+        eventsFound:
+          type: integer
+        eventsUpserted:
+          type: integer
+        errorMessage:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+        finishedAt:
+          type: string
+          nullable: true
+
+    ScrapeResult:
+      type: object
+      required: [jobs]
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScrapeJob"
