@@ -1,0 +1,240 @@
+You are updating an existing full-stack event aggregation app (Node.js + Express + Playwright + PostgreSQL).
+
+The system currently scrapes events (primarily from Unstop) but has issues with inaccurate data, duplicate entries, and inefficient scraping. Your task is to improve **data accuracy, correctness, and efficiency** without breaking the existing architecture.
+
+---
+
+## 🎯 Objectives
+
+1. Fix incorrect/dummy event links
+2. Remove duplicate events (same event appearing multiple times)
+3. Clean existing database (remove invalid/dummy data)
+4. Improve scraper accuracy and efficiency significantly
+
+---
+
+## 🔧 1. Fix Event Link Extraction (HIGH PRIORITY)
+
+### Problem:
+
+* Many `event_url` values are:
+
+  * "#"
+  * empty
+  * incorrect container links
+  * repeated base URLs
+
+### Solution:
+
+Update `/scrapers/unstopScraper.js`:
+
+* Extract ONLY valid `<a>` tags with real `href`
+* Ensure:
+
+  * URL starts with `https://`
+  * Not equal to "#" or empty
+* If multiple anchors exist in card:
+
+  * Prefer anchor wrapping title or main clickable element
+
+### Add validation function:
+
+```javascript
+function isValidUrl(url) {
+  return url && url.startsWith("https://") && !url.includes("#");
+}
+```
+
+* Skip events where URL is invalid
+
+---
+
+## 🔧 2. Remove Duplicate Events (CRITICAL)
+
+### Problem:
+
+* Same event appears multiple times due to:
+
+  * repeated cards
+  * pagination overlap
+  * UI variations
+
+### Fix at TWO levels:
+
+---
+
+### (A) Scraper Level Deduplication
+
+Before returning scraped data:
+
+```javascript
+const seen = new Set();
+
+const uniqueEvents = events.filter(event => {
+  if (seen.has(event.url)) return false;
+  seen.add(event.url);
+  return true;
+});
+```
+
+---
+
+### (B) Database Level Deduplication
+
+Ensure:
+
+* `url` column is UNIQUE
+
+Use UPSERT:
+
+```sql
+INSERT INTO events (...)
+VALUES (...)
+ON CONFLICT (url)
+DO UPDATE SET updated_at = NOW();
+```
+
+---
+
+## 🔧 3. Remove Existing Dummy Data (DATABASE CLEANUP)
+
+Run cleanup logic:
+
+Delete rows where:
+
+* url is NULL
+* url = '#'
+* url does not start with "https://"
+* title is NULL or empty
+
+SQL:
+
+```sql
+DELETE FROM events
+WHERE url IS NULL
+   OR url = '#'
+   OR url NOT LIKE 'https://%'
+   OR title IS NULL
+   OR title = '';
+```
+
+---
+
+## ⚡ 4. Improve Scraper Accuracy (VERY IMPORTANT)
+
+### A. Better Selectors
+
+* Use stable selectors (avoid random class names)
+* Prefer:
+
+  * semantic tags
+  * aria-labels
+  * anchor-based extraction
+
+---
+
+### B. Extract From Detail Page (optional but recommended)
+
+For higher accuracy:
+
+* Visit each event URL
+* Extract:
+
+  * correct dates
+  * organizer
+  * description
+* Use concurrency limit (max 3–5 pages)
+
+---
+
+### C. Fallback Handling
+
+If any field missing:
+
+* Use safe defaults:
+
+  * mode = "online"
+  * tags = []
+
+---
+
+## ⚡ 5. Improve Efficiency (VERY IMPORTANT)
+
+### A. Limit Infinite Scroll
+
+Do NOT scroll infinitely:
+
+* Stop after:
+
+  * no new content OR
+  * max 5–7 scrolls
+
+---
+
+### B. Use Concurrency Control
+
+Use a queue:
+
+```javascript
+const pLimit = require('p-limit');
+const limit = pLimit(3);
+```
+
+---
+
+### C. Avoid Re-scraping Same URLs
+
+Before scraping detail page:
+
+* Check if URL already exists in DB
+* Skip if already processed recently
+
+---
+
+### D. Add Retry Logic
+
+Retry failed page loads up to 2 times
+
+---
+
+## 🧠 6. Data Quality Rules
+
+Only store event if:
+
+* valid URL
+* non-empty title
+* at least one meaningful field exists
+
+---
+
+## 📊 7. Logging Improvements
+
+Log:
+
+* total scraped events
+* skipped invalid events
+* duplicates removed
+* final stored count
+
+---
+
+## 🚀 Final Expected Result
+
+After update:
+
+* No dummy links
+* No duplicate events
+* Clean database
+* Accurate event data
+* Faster and more efficient scraper
+
+The system should prioritize:
+👉 Accuracy > Quantity
+👉 Clean data > More data
+
+---
+
+Ensure everything runs smoothly with:
+npm run dev
+
+Do not modify UI significantly — focus on backend quality and correctness.
